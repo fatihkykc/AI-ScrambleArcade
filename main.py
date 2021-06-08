@@ -26,7 +26,7 @@ class SpaceShip(pygame.sprite.Sprite):
         self.shootable = False
         self.maxTick = 10
         self.tick = self.maxTick
-        self.maxRocket = 30
+        self.maxRocket = 60
         self.rangex = rangex
         self.rangey = rangey
         self.rockettick = self.maxRocket
@@ -427,3 +427,99 @@ def get_positions(targets: pygame.sprite.Group):
     # for target in targets:
     #     infos.append(target.rect.center)
     return infos
+
+
+def lineRectIntersectionPoints(line, rect):
+    """ Get the list of points where the line and rect
+        intersect,  The result may be zero, one or two points.
+
+        BUG: This function fails when the line and the side
+             of the rectangle overlap """
+
+    def linesAreParallel(x1, y1, x2, y2, x3, y3, x4, y4):
+        """ Return True if the given lines (x1,y1)-(x2,y2) and
+            (x3,y3)-(x4,y4) are parallel """
+        return (((x1 - x2) * (y3 - y4)) - ((y1 - y2) * (x3 - x4)) == 0)
+
+    def intersectionPoint(x1, y1, x2, y2, x3, y3, x4, y4):
+        """ Return the point where the lines through (x1,y1)-(x2,y2)
+            and (x3,y3)-(x4,y4) cross.  This may not be on-screen  """
+        # Use determinant method, as per
+        # Ref: https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection
+        Px = ((((x1 * y2) - (y1 * x2)) * (x3 - x4)) - ((x1 - x2) * ((x3 * y4) - (y3 * x4)))) / (
+                ((x1 - x2) * (y3 - y4)) - ((y1 - y2) * (x3 - x4)))
+        Py = ((((x1 * y2) - (y1 * x2)) * (y3 - y4)) - ((y1 - y2) * ((x3 * y4) - (y3 * x4)))) / (
+                ((x1 - x2) * (y3 - y4)) - ((y1 - y2) * (x3 - x4)))
+        return Px, Py
+
+    ### Begin the intersection tests
+    result = []
+    line_x1, line_y1, line_x2, line_y2 = line  # split into components
+    pos_x, pos_y, width, height = rect
+
+    ### Convert the rectangle into 4 lines
+    rect_lines = [(pos_x, pos_y, pos_x + width, pos_y), (pos_x, pos_y + height, pos_x + width, pos_y + height),
+                  # top & bottom
+                  (pos_x, pos_y, pos_x, pos_y + height),
+                  (pos_x + width, pos_y, pos_x + width, pos_y + height)]  # left & right
+
+    ### intersect each rect-side with the line
+    for r in rect_lines:
+        rx1, ry1, rx2, ry2 = r
+        if (not linesAreParallel(line_x1, line_y1, line_x2, line_y2, rx1, ry1, rx2, ry2)):  # not parallel
+            pX, pY = intersectionPoint(line_x1, line_y1, line_x2, line_y2, rx1, ry1, rx2,
+                                       ry2)  # so intersecting somewhere
+            pX = round(pX)
+            pY = round(pY)
+            # Lines intersect, but is on the rectangle, and between the line end-points?
+            if (rect.collidepoint(pX, pY) and
+                    pX >= min(line_x1, line_x2) and pX <= max(line_x1, line_x2) and
+                    pY >= min(line_y1, line_y2) and pY <= max(line_y1, line_y2)):
+                # pygame.draw.circle( surface, "WHITE", ( pX, pY ), 4 )
+                result.append((pX, pY))  # keep it
+                if (len(result) == 2):
+                    break  # Once we've found 2 intersection points, that's it
+    return result
+
+
+def check_linecol(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group):
+    # Does the line <player> to <the road of missile> intersect any obstacles?
+    line_of_sight = [spaceship.rect.right, spaceship.rect.centery, *calculate_missile_points(spaceship)]
+    found = True
+    coords = []
+    for target in targets:
+        # is anyting blocking the line-of-sight?
+        intersection_points = lineRectIntersectionPoints(line_of_sight, target.rect)
+        if (len(intersection_points) > 0):
+            found = False
+            coords = intersection_points
+            return coords
+            # break  # seen already
+
+    # if (found):
+    #     # pygame.draw.line(window, WHITE, player_centre, npc_centre)
+    #     return coords
+    # else:
+    #     # pygame.draw.line(window, GREY, player_centre, npc_centre)
+    #     return "WHITE"
+
+
+def calculate_missile_points(spaceship: pygame.sprite.Sprite):
+    xpos = spaceship.rect.right
+    ypos = spaceship.rect.centery
+    positions = []
+    Py = 640 - ypos
+    Px = xpos
+    k = Py // 10
+    Sx = Px + k * 2
+    Sy = Py
+    while ypos < 640:
+        # positions.append((xpos, ypos))
+        ypos += 10
+        xpos += 2
+    print((Sx, Sy), (xpos, ypos))
+    return Sx, Sy
+    #
+    # # x_pos = [i for i in range(xpos, 800, 2)]
+    # # y_pos = [i for i in range(ypos, 640, 10)]
+    # return xpos, ypos
