@@ -1,3 +1,5 @@
+import pickle
+
 from main import *
 import neat
 
@@ -5,7 +7,7 @@ import neat
 class GameObject:
     """Oyun objesi."""
 
-    def __init__(self, genomes, config, height=640, width=800, keepgoing=True, level=1, game_over=False, fps=10000):
+    def __init__(self, genomes, config, height=640, width=800, keepgoing=True, level=1, game_over=False, fps=99999):
         pygame.init()
         self.white = (255, 255, 255)
         pygame.mixer.init()
@@ -56,28 +58,36 @@ class GameObject:
                     # ********** INPUTS ************ #
                     # x and y distance with the 5 closest enemies in front
                     # distance with the top and bottom stones
-                    enemy1_distanceX, enemy1_distanceY = map(list,
-                                                             zip(*get_distances(self.spaceship, self.enemy1Sprites)))
-                    fuel_distanceX, fuel_distanceY = map(list,
-                                                         zip(*get_distances(self.spaceship, self.fuelSprites)))
-                    rocket_distanceX, rocket_distanceY = map(list,
-                                                             zip(*get_distances(self.spaceship, self.enemy3Sprites)))
+                    closest_rocket = get_closest(self.spaceship, self.enemy3Sprites)
+                    closest_fuel = get_closest(self.spaceship, self.fuelSprites)
+                    closest_enemy1s = get_closest_n(self.spaceship, self.enemy1Sprites, 3)
+                    # enemy1_distanceX, enemy1_distanceY = map(list,
+                    #                                          zip(*get_distances(self.spaceship, self.enemy1Sprites)))
+                    # fuel_distanceX, fuel_distanceY = map(list,
+                    #                                      zip(*get_distances(self.spaceship, self.fuelSprites)))
+                    # rocket_distanceX, rocket_distanceY = map(list,
+                    #                                          zip(*get_distances(self.spaceship, self.enemy3Sprites)))
                     # print(enemy1_distanceX[0])
-                    enemy1_x, enemy1_y = map(list,
-                                             zip(*get_positions(self.enemy1Sprites)))
+                    # enemy1_x, enemy1_y = map(list,
+                    #                          zip(*get_positions(self.enemy1Sprites)))
                     # enemy3_x, enemy3_y = map(list,
                     #                          zip(*get_positions(self.enemy3Sprites)))
-                    stone_x, stone_y = map(list,
-                                           zip(*get_positions(self.stoneSprites)))
+                    # stone_x, stone_y = map(list,
+                    #                        zip(*get_positions(self.stoneSprites)))
                     # fuel_x, fuel_y = map(list, zip(*get_positions(self.fuelSprites)))
                     # print(self.spaceship.rect.right)
                     output = net \
                         .activate(
                         (
-                            *enemy1_distanceX[:3], *enemy1_distanceY[:3], fuel_distanceX[0], fuel_distanceY[0],
-                            rocket_distanceX[0], rocket_distanceY[0],
-                            self.spaceship.rect.right, self.spaceship.rect.bottom,
-                            self.spaceship.fuel % 2,
+                            self.spaceship.rect.right, self.spaceship.rect.centery,
+                            *[ce.rect.left if ce else 0 for ce in closest_enemy1s],
+                            *[ce.rect.top if ce else 0 for ce in closest_enemy1s],
+                            [closest_fuel.rect.left if closest_fuel else 0][0],
+                            [closest_fuel.rect.top if closest_fuel else 0][0],
+                            [closest_rocket.rect.left if closest_rocket else 0][0],
+                            [closest_rocket.rect.top if closest_rocket else 0][0],
+
+                            # self.spaceship.fuel,
                         ))
                     # print(get_coinformation(self.spaceship, self.enemySprites)[:2])
                     self.spaceship.play(output)
@@ -93,7 +103,10 @@ class GameObject:
         """Oyun sonu"""
         if self.theEndGame.end():
             try:
-                self.level()
+                print("yeyy")
+                self.spaceship.score += 100
+                self.spaceship.lives -= 1
+                # self.level()
             except Exception as ex:
                 pygame.quit()
 
@@ -344,7 +357,7 @@ class GameObject:
             for i in range(75):
                 self.enemy = Enemy1()
                 self.enemy.rect.x = random.randrange(600, 8064, 10)
-                self.enemy.rect.y = random.randrange(0, self.height, 10)
+                self.enemy.rect.y = random.randrange(30, self.height, 10)
                 # self.enemySprites.add(self.enemy)
                 self.enemy1Sprites.add(self.enemy)
         if self.currentLevel == 2 or self.currentLevel == 3:
@@ -396,6 +409,24 @@ class GameObject:
         self.explosionSprites.draw(self.screen)
         self.liveSprites.draw(self.screen)
         self.draw_player_fuel(self.screen, self.width / 2 - 100, self.height - 50, self.spaceship.fuel / 100)
+        closest_rocket = get_closest(self.spaceship, self.enemy3Sprites)
+        closest_fuel = get_closest(self.spaceship, self.fuelSprites)
+        closest_stone = get_closest(self.spaceship, self.stoneSprites)
+        closest_enemy1s = get_closest_n(self.spaceship, self.enemy1Sprites, 3)
+        if closest_rocket:
+            pygame.draw.line(self.screen, "RED", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                             (closest_rocket.rect.centerx, closest_rocket.rect.top))
+        if closest_fuel:
+            pygame.draw.line(self.screen, "GREEN", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                             (closest_fuel.rect.centerx, closest_fuel.rect.top))
+        if closest_stone:
+            pygame.draw.line(self.screen, "BLUE", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                             (closest_stone.rect.centerx, closest_stone.rect.top))
+
+        for e in closest_enemy1s:
+            if e:
+                pygame.draw.line(self.screen, "YELLOW", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                                 (e.rect.centerx, e.rect.top))
         draw_text(self.screen, "FUEL ", 18, self.width / 2, self.height - 50)
         draw_text(self.screen, str(self.spaceship.score), 24, self.width - 24, 24)
         draw_text(self.screen, str(self.spaceship.fuel), 24, self.width - 100, 24)
@@ -422,7 +453,9 @@ def run(config_file):
 
     # Run for up to 50 generations.
     winner = p.run(GameObject, 30)
-
+    with open("winner.pkl", "wb") as f:
+        pickle.dump(winner, f)
+        f.close()
     # show final stats
     print('\nBest genome:\n{!s}'.format(winner))
 

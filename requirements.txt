@@ -1,1 +1,4 @@
-pygame
+pygame~=2.0.1
+
+numpy~=1.19.4
+pynput~=1.7.3

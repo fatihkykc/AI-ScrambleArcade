@@ -1,5 +1,6 @@
 import os
 import random
+import numpy as np
 from math import atan2, degrees, dist
 import pygame
 from pynput.keyboard import Key, Controller
@@ -53,8 +54,8 @@ class SpaceShip(pygame.sprite.Sprite):
         if keystate[pygame.K_RIGHT]:
             self.right()
 
-        if self.rect.right > self.rangex - 100:
-            self.rect.right = self.rangex - 100
+        if self.rect.right > self.rangex - 10:
+            self.rect.right = self.rangex - 10
         if self.rect.left < 0:
             self.rect.left = 0
         if keystate[pygame.K_UP]:
@@ -389,6 +390,36 @@ def get_distances(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group)
         infos.append((distance_x, distance_y))
     infos.sort(key=lambda x: x[0])
     return infos
+
+
+def get_closest(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group):
+    infos = []
+    closest_dist = 999999
+    closest_obj = None
+    for target in targets:
+        dist = get_distance(spaceship.rect, target.rect)
+        if dist < closest_dist and spaceship.rect.centery - target.rect.centery < 0 and spaceship.rect.right - target.rect.left < 0:
+            closest_obj = target
+            closest_dist = dist
+    return closest_obj
+
+
+def get_closest_n(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group, n):
+    infos = []
+    closest_dists = [999 for n in range(n)]
+    closest_objs = [None for n in range(n)]
+    for target in targets:
+        dist = get_distance(spaceship.rect, target.rect)
+        max_ind = np.argmax(closest_dists)
+        if dist < closest_dists[int(max_ind)] \
+                and spaceship.rect.centery - target.rect.centery < 0 \
+                and spaceship.rect.left - target.rect.left < 0 \
+                and target.rect.left < 800:
+            closest_objs.pop(int(max_ind))
+            closest_objs.insert(int(max_ind), target)
+            closest_dists.pop(int(max_ind))
+            closest_dists.insert(int(max_ind), dist)
+    return closest_objs
 
 
 def get_positions(targets: pygame.sprite.Group):
