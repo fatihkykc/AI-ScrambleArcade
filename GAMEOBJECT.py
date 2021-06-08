@@ -1,10 +1,11 @@
 from main import *
+import neat
 
 
 class GameObject:
     """Oyun objesi."""
 
-    def __init__(self, height=640, width=800, keepgoing=True, level=1, game_over=False, fps=60):
+    def __init__(self, genomes, config, height=640, width=800, keepgoing=True, level=1, game_over=False, fps=10000):
         pygame.init()
         self.white = (255, 255, 255)
         pygame.mixer.init()
@@ -13,27 +14,80 @@ class GameObject:
         self.width = width
         self.height = height
         self.keepgoing = keepgoing
+        self.g = genomes
+        self.config = config
+        self.nets = []
+        self.ge = []
+        self.spaceships = []
         self.game_over = game_over
         self.initScreen()
         self.fillBackground()
         self.blit()
-        self.lives = [Lives(1), Lives(2), Lives(3)]
+        self.lives = [Lives(1)]
         self.initSprites()
         self.load_data()
         self.update()
 
     def update(self):
         """Update fonksiyonu her frame de çağrılır."""
-        while self.spaceship.lives >= 0:
-            if self.spaceship.lives == 0:
-                self.game_over = True
-            self.keepGoing()
-            self.colliders()
-            self.spriteUpdate()
-            self.clear()
-            self.draw()
-            self.isThisTheEnd()
-            pygame.display.flip()
+        for genome_id, genome in self.g:
+            genome.fitness = 0  # start with fitness level of 0
+            net = neat.nn.FeedForwardNetwork.create(genome, self.config)
+            while self.spaceship.lives >= 0:
+                if self.spaceship.lives == 0:
+                    # self.game_over = True
+                    self.keepgoing = True
+                    self.initSprites()
+                    self.keepGoing(strt=False)
+                    print("Species: " + str(genome_id))
+                    break
+                    # self.colliders()
+                    # self.spriteUpdate()
+                    # self.clear()
+                    # self.draw()
+                    # self.isThisTheEnd()
+                    # pygame.display.flip()
+                    # self.spaceship.lives=1s
+                else:
+                    # self.keepgoing = True
+                    self.keepGoing()
+                    self.colliders()
+                    self.spriteUpdate()
+                    # ********** INPUTS ************ #
+                    # x and y distance with the 5 closest enemies in front
+                    # distance with the top and bottom stones
+                    enemy1_distanceX, enemy1_distanceY = map(list,
+                                                             zip(*get_distances(self.spaceship, self.enemy1Sprites)))
+                    fuel_distanceX, fuel_distanceY = map(list,
+                                                         zip(*get_distances(self.spaceship, self.fuelSprites)))
+                    rocket_distanceX, rocket_distanceY = map(list,
+                                                             zip(*get_distances(self.spaceship, self.enemy3Sprites)))
+                    # print(enemy1_distanceX[0])
+                    enemy1_x, enemy1_y = map(list,
+                                             zip(*get_positions(self.enemy1Sprites)))
+                    # enemy3_x, enemy3_y = map(list,
+                    #                          zip(*get_positions(self.enemy3Sprites)))
+                    stone_x, stone_y = map(list,
+                                           zip(*get_positions(self.stoneSprites)))
+                    # fuel_x, fuel_y = map(list, zip(*get_positions(self.fuelSprites)))
+                    # print(self.spaceship.rect.right)
+                    output = net \
+                        .activate(
+                        (
+                            *enemy1_distanceX[:3], *enemy1_distanceY[:3], fuel_distanceX[0], fuel_distanceY[0],
+                            rocket_distanceX[0], rocket_distanceY[0],
+                            self.spaceship.rect.right, self.spaceship.rect.bottom,
+                            self.spaceship.fuel % 2,
+                        ))
+                    # print(get_coinformation(self.spaceship, self.enemySprites)[:2])
+                    self.spaceship.play(output)
+                    genome.fitness = self.spaceship.score
+                    self.clear()
+                    self.draw()
+                    self.isThisTheEnd()
+                    self.nets.append(net)
+                    self.ge.append(genome)
+                    pygame.display.flip()
 
     def isThisTheEnd(self):
         """Oyun sonu"""
@@ -72,7 +126,7 @@ class GameObject:
                     self.fuel.rect.y = y
                 if col == "e":
                     self.enemy3 = Enemy3()
-                    self.enemySprites.add(self.enemy3)
+                    self.enemy3Sprites.add(self.enemy3)
                     self.enemy3.rect.x = x
                     self.enemy3.rect.y = y
 
@@ -121,22 +175,42 @@ class GameObject:
             self.explosionSprites.add(expl)
         if fuel_hit_by_bullet:
             self.spaceship.fuel += 10
+            self.spaceship.score += 5
 
         # bullet-enemy collider
-        bullethits = pygame.sprite.groupcollide(self.enemySprites, self.shootSprites, True, True)
+        bullethits = pygame.sprite.groupcollide(self.enemy1Sprites, self.shootSprites, True, True)
         for hit in bullethits:
             expl = Explosion(hit.rect.center, 'sm')
             self.explosionSprites.add(expl)
         if bullethits:
-            self.spaceship.score += 1
+            self.spaceship.score += 10
+
+        # bullet-enemy collider
+        bullethits = pygame.sprite.groupcollide(self.enemy3Sprites, self.shootSprites, True, True)
+        for hit in bullethits:
+            expl = Explosion(hit.rect.center, 'sm')
+            self.explosionSprites.add(expl)
+        if bullethits:
+            self.spaceship.score += 10
 
         # player-enemy collider
-        spaceshiphits = pygame.sprite.spritecollide(self.spaceship, self.enemySprites, True)
+        spaceshiphits = pygame.sprite.spritecollide(self.spaceship, self.enemy1Sprites, True)
         for hit in spaceshiphits:
             expl = Explosion(hit.rect.center, 'sm')
             self.explosionSprites.add(expl)
         if spaceshiphits:
-            self.spaceship.score -= 5
+            self.spaceship.score -= 50
+            self.spaceship.lives -= 1
+            self.lives[-1].kill()
+            del self.lives[-1]
+
+        # player-enemy collider
+        spaceshiphits = pygame.sprite.spritecollide(self.spaceship, self.enemy3Sprites, True)
+        for hit in spaceshiphits:
+            expl = Explosion(hit.rect.center, 'sm')
+            self.explosionSprites.add(expl)
+        if spaceshiphits:
+            self.spaceship.score -= 50
             self.spaceship.lives -= 1
             self.lives[-1].kill()
             del self.lives[-1]
@@ -145,6 +219,7 @@ class GameObject:
         spaceshiphitsground = pygame.sprite.spritecollide(self.spaceship, self.stoneSprites, False)
         if spaceshiphitsground:
             self.spaceship.lives = 0
+            self.spaceship.score -= 50
 
         # rocket-ground collider
         rockethitsground = pygame.sprite.groupcollide(self.shootSprites, self.stoneSprites, True, False)
@@ -164,7 +239,8 @@ class GameObject:
         self.liveSprites = pygame.sprite.Group()
         for i in self.lives:
             self.liveSprites.add(i)
-        self.enemySprites = pygame.sprite.Group()
+        self.enemy1Sprites = pygame.sprite.Group()
+        self.enemy3Sprites = pygame.sprite.Group()
         self.fuelSprites = pygame.sprite.Group()
         self.shootSprites = pygame.sprite.Group()
         self.stoneSprites = pygame.sprite.Group()
@@ -172,21 +248,22 @@ class GameObject:
         self.userSprites = pygame.sprite.Group(self.spaceship)
         self.rocket = Rockets(self.spaceship.rect.right, self.spaceship.rect.center[1], self.spaceship.rangey)
 
-    def keepGoing(self, isWave1=False, isWave2=False):
+    def keepGoing(self, isWave1=False, isWave2=False, strt=False):
         """1. ve 2. düşman dalgalarını ve oyun bitiş, açılış ekranını kontrol eder."""
         self.isWave1 = isWave1
         self.isWave2 = isWave2
         if self.keepgoing:
-            self.show_strt_screen()
+            if strt:
+                self.show_strt_screen()
             self.keepgoing = False
-            self.lives = [Lives(1), Lives(2), Lives(3)]
+            self.lives = [Lives(i) for i in range(1, self.spaceship.lives + 1)]
             self.initSprites()
             self.level()
 
         if self.game_over:
             self.show_go_screen()
             self.game_over = False
-            self.lives = [Lives(1), Lives(2), Lives(3)]
+            self.lives = [Lives(i) for i in range(1, self.spaceship.lives + 1)]
             self.initSprites()
             self.currentLevel = 1
             self.level()
@@ -264,11 +341,12 @@ class GameObject:
         """birinci düşman dalgası için yer ve level konfigurasyonu"""
         # Event loop
         if self.currentLevel == 1 or self.currentLevel == 3:
-            for i in range(50):
+            for i in range(75):
                 self.enemy = Enemy1()
-                self.enemy.rect.x = random.randrange(600, 8064)
-                self.enemy.rect.y = random.randrange(0, self.height // 2 + 50)
-                self.enemySprites.add(self.enemy)
+                self.enemy.rect.x = random.randrange(600, 8064, 10)
+                self.enemy.rect.y = random.randrange(0, self.height, 10)
+                # self.enemySprites.add(self.enemy)
+                self.enemy1Sprites.add(self.enemy)
         if self.currentLevel == 2 or self.currentLevel == 3:
             for i in range(50):
                 self.enemy2 = Enemy2()
@@ -276,12 +354,17 @@ class GameObject:
                 self.enemy2.rect.y = random.randrange(0, self.height // 2 + 50)
                 self.enemySprites.add(self.enemy2)
 
+    # def restart(self):
+    #     self.
+
     def clear(self):
         """ekranı temizler."""
         self.systemSprites.clear(self.screen, self.background)
         self.userSprites.clear(self.screen, self.background)
         self.stoneSprites.clear(self.screen, self.background)
-        self.enemySprites.clear(self.screen, self.background)
+        # self.enemySprites.clear(self.screen, self.background)
+        self.enemy1Sprites.clear(self.screen, self.background)
+        self.enemy3Sprites.clear(self.screen, self.background)
         self.fuelSprites.clear(self.screen, self.background)
         self.shootSprites.clear(self.screen, self.background)
         self.explosionSprites.clear(self.screen, self.background)
@@ -292,7 +375,9 @@ class GameObject:
         self.systemSprites.update()
         self.userSprites.update()
         self.stoneSprites.update()
-        self.enemySprites.update()
+        # self.enemySprites.update()
+        self.enemy1Sprites.update()
+        self.enemy3Sprites.update()
         self.fuelSprites.update()
         self.shootSprites.update()
         self.explosionSprites.update()
@@ -303,7 +388,9 @@ class GameObject:
         self.systemSprites.draw(self.screen)
         self.userSprites.draw(self.screen)
         self.stoneSprites.draw(self.screen)
-        self.enemySprites.draw(self.screen)
+        # self.enemySprites.draw(self.screen)
+        self.enemy1Sprites.draw(self.screen)
+        self.enemy3Sprites.draw(self.screen)
         self.fuelSprites.draw(self.screen)
         self.shootSprites.draw(self.screen)
         self.explosionSprites.draw(self.screen)
@@ -314,8 +401,34 @@ class GameObject:
         draw_text(self.screen, str(self.spaceship.fuel), 24, self.width - 100, 24)
 
 
+def run(config_file):
+    """
+    runs the NEAT algorithm to train a neural network to play flappy bird.
+    :param config_file: location of config file
+    :return: None
+    """
+    config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                                neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                                config_file)
+
+    # Create the population, which is the top-level object for a NEAT run.
+    p = neat.Population(config)
+
+    # Add a stdout reporter to show progress in the terminal.
+    p.add_reporter(neat.StdOutReporter(True))
+    stats = neat.StatisticsReporter()
+    p.add_reporter(stats)
+    # p.add_reporter(neat.Checkpointer(5))
+
+    # Run for up to 50 generations.
+    winner = p.run(GameObject, 30)
+
+    # show final stats
+    print('\nBest genome:\n{!s}'.format(winner))
+
+
 if __name__ == '__main__':
-    # local_dir = os.path.dirname(__file__)
-    # config_path = os.path.join(local_dir, 'network.txt')
-    # run(config_path)
-    GameObject(level=1, fps=60)
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, 'network.txt')
+    run(config_path)
+    # GameObject(level=1, fps=60)

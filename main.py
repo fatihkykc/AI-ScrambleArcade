@@ -1,7 +1,10 @@
 import os
 import random
-
+from math import atan2, degrees, dist
 import pygame
+from pynput.keyboard import Key, Controller
+
+keyboard = Controller()
 
 
 class SpaceShip(pygame.sprite.Sprite):
@@ -12,9 +15,9 @@ class SpaceShip(pygame.sprite.Sprite):
         self.image, self.rect = load_png('images/spaceship.png')
         self.score = 0
         self.fuel = 200
-        self.lives = 3
-        self.x = 200
-        self.y = 250
+        self.lives = 1
+        self.rect.x = 0
+        self.rect.y = (rangey // 2) - 40
         self.collide = collide
         self.laser = None
         self.rocket = None
@@ -40,46 +43,87 @@ class SpaceShip(pygame.sprite.Sprite):
             self.rockettick = self.maxRocket
         else:
             self.rockettick -= 1
-        pygame.event.get()
         keystate = pygame.key.get_pressed()
-        if keystate[pygame.K_LEFT]:
-            self.speedx = -8
         if keystate[pygame.K_SPACE]:
-            if self.shootable:
-                self.shoot()
-                self.shootable = False
+            self.shoot()
         if keystate[pygame.K_r]:
-            if self.rocketready:
-                self.missile()
-                self.rocketready = False
+            self.missile()
+        if keystate[pygame.K_LEFT]:
+            self.left()
         if keystate[pygame.K_RIGHT]:
-            self.speedx = 8
-        self.rect.x += self.speedx
-        if self.rect.right > self.rangex:
-            self.rect.right = self.rangex
+            self.right()
+
+        if self.rect.right > self.rangex - 100:
+            self.rect.right = self.rangex - 100
         if self.rect.left < 0:
             self.rect.left = 0
         if keystate[pygame.K_UP]:
-            self.speedy = -8
+            self.up()
         if keystate[pygame.K_DOWN]:
-            self.speedy = 8
-        self.rect.y += self.speedy
+            self.down()
+        # self.rect.y += self.speedy
         if self.rect.y > self.rangey:
             self.rect.y = self.rangey
         if self.rect.y < 0:
             self.rect.y = 0
 
+    def radar(self):
+        pass
+
+    def up(self):
+        self.speedy = -8
+        self.rect.y += self.speedy
+
+    def down(self):
+        self.speedy = 8
+        self.rect.y += self.speedy
+
+    def right(self):
+        self.speedx = 8
+        self.rect.x += self.speedx
+
+    def left(self):
+        self.speedx = -8
+        self.rect.x += self.speedx
+
     def shoot(self):
         """mermi ateşleme fonksiyonu"""
-        laser = Shoot(self.rect.right, self.rect.center[1], self.rangex)
-        self.collide.add(laser)
-        self.fuel -= 1
+        if self.shootable:
+            laser = Shoot(self.rect.right, self.rect.center[1], self.rangex)
+            self.collide.add(laser)
+            self.fuel -= 1
+            self.score -= 1
+            self.shootable = False
 
     def missile(self):
         """roket ateşleme fonksiyonu"""
-        rocket = Rockets(self.rect.right, self.rect.center[1], self.rangey)
-        self.collide.add(rocket)
-        self.fuel -= 2
+        if self.rocketready:
+            rocket = Rockets(self.rect.right, self.rect.center[1], self.rangey)
+            self.collide.add(rocket)
+            self.fuel -= 2
+            self.score -= 2
+            self.rocketready = False
+
+    def play(self, predictions):
+        # print(predictions)
+        if predictions[0] > 0.5:
+            # print("tried to shoot")
+            self.shoot()
+        if predictions[1] > 0.5:
+            # print("tried to missile")
+            self.missile()
+        if predictions[2] > 0.5:
+            # print("tried to go up")
+            self.up()
+        if predictions[3] > 0.5:
+            # print("tried to go down")
+            self.down()
+        if predictions[4] > 0.5:
+            # print("tried to go right")
+            self.right()
+        if predictions[5] > 0.5:
+            # print("tried to go left")
+            self.left()
 
 
 class Lives(pygame.sprite.Sprite):
@@ -220,7 +264,6 @@ class Space(pygame.sprite.Sprite):
     def update(self):
         self.rect.center = (self.x, self.y)
         self.x -= self.dx
-        print(self.x, self.width)
         if self.x == 0:
             self.reset()
 
@@ -314,3 +357,42 @@ def draw_text(surf, text, size, x, y):
     text_rect = text_surface.get_rect()
     text_rect.midtop = (x, y)
     surf.blit(text_surface, text_rect)
+
+
+def get_angle(pointA, pointB):
+    changeInX = pointB[0] - pointA[0]
+    changeInY = pointB[1] - pointA[1]
+    return degrees(atan2(changeInY, changeInX))
+
+
+def get_distance(pointA, pointB):
+    return dist(pointA, pointB)
+
+
+def get_coinformation(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group):
+    infos = []
+    for target in targets:
+        # angle = get_angle(spaceship.rect.right, target.rect.left)
+        distance = dist(spaceship.rect.right, target.rect.left)
+        infos.append(distance)
+    #     infos.append((distance, angle))
+    # infos.sort(key=lambda x: x[0])
+    infos.sort()
+    return infos
+
+
+def get_distances(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group):
+    infos = []
+    for target in targets:
+        distance_x = spaceship.rect.right - target.rect.left
+        distance_y = spaceship.rect.centery - target.rect.centery
+        infos.append((distance_x, distance_y))
+    infos.sort(key=lambda x: x[0])
+    return infos
+
+
+def get_positions(targets: pygame.sprite.Group):
+    infos = [target.rect.center for target in targets]
+    # for target in targets:
+    #     infos.append(target.rect.center)
+    return infos
