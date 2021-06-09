@@ -62,7 +62,9 @@ class GameObject:
                     closest_fuel = get_closest(self.spaceship, self.fuelSprites)
                     closest_enemy1s = get_closest_n(self.spaceship, self.enemy1Sprites, 3)
                     missile_points = calculate_missile_points(self.spaceship)
-                    intersections = check_linecol(self.spaceship, self.enemy1Sprites)
+                    bullet_points = calculate_bullet_points(self.spaceship)
+                    bullet_intersections = check_linecol(self.spaceship, self.enemy1Sprites, bullet_points)
+                    missile_intersections = check_linecol(self.spaceship, self.enemy1Sprites, missile_points)
                     # enemy1_distanceX, enemy1_distanceY = map(list,
                     #                                          zip(*get_distances(self.spaceship, self.enemy1Sprites)))
                     # fuel_distanceX, fuel_distanceY = map(list,
@@ -88,8 +90,10 @@ class GameObject:
                             [closest_fuel.rect.top if closest_fuel else 0][0],
                             [closest_rocket.rect.left if closest_rocket else 0][0],
                             [closest_rocket.rect.top if closest_rocket else 0][0],
-                            [intersections[0][0] if intersections else missile_points[0]][0],
-                            [intersections[0][1] if intersections else missile_points[1]][0]
+                            [missile_intersections[0][0] if missile_intersections else missile_points[0]][0],
+                            [missile_intersections[0][1] if missile_intersections else missile_points[1]][0],
+                            [bullet_intersections[0][0] if bullet_intersections else bullet_points[0]][0],
+                            [bullet_intersections[0][1] if bullet_intersections else bullet_points[1]][0]
                         ))
                     # print(get_coinformation(self.spaceship, self.enemySprites)[:2])
                     self.spaceship.play(output)
@@ -416,7 +420,9 @@ class GameObject:
         closest_stone = get_closest(self.spaceship, self.stoneSprites)
         closest_enemy1s = get_closest_n(self.spaceship, self.enemy1Sprites, 3)
         missile_points = calculate_missile_points(self.spaceship)
-        intersections = check_linecol(self.spaceship, self.enemy1Sprites)
+        bullet_points = calculate_bullet_points(self.spaceship)
+        missile_intersections = check_linecol(self.spaceship, self.enemy1Sprites, missile_points)
+        bullet_intersections = check_linecol(self.spaceship, self.enemy1Sprites, bullet_points)
         if closest_rocket:
             pygame.draw.line(self.screen, "RED", (self.spaceship.rect.right, self.spaceship.rect.centery),
                              (closest_rocket.rect.centerx, closest_rocket.rect.top))
@@ -426,12 +432,18 @@ class GameObject:
         if closest_stone:
             pygame.draw.line(self.screen, "BLUE", (self.spaceship.rect.right, self.spaceship.rect.centery),
                              (closest_stone.rect.centerx, closest_stone.rect.top))
-        if intersections:
+        if missile_intersections:
             pygame.draw.line(self.screen, "WHITE", (self.spaceship.rect.right, self.spaceship.rect.centery),
-                             intersections[0])
+                             missile_intersections[0])
         else:
             pygame.draw.line(self.screen, "WHITE", (self.spaceship.rect.right, self.spaceship.rect.centery),
                              missile_points)
+        if bullet_intersections:
+            pygame.draw.line(self.screen, "PURPLE", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                             bullet_intersections[0])
+        else:
+            pygame.draw.line(self.screen, "GREEN", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                             bullet_points)
         for e in closest_enemy1s:
             if e:
                 pygame.draw.line(self.screen, "YELLOW", (self.spaceship.rect.right, self.spaceship.rect.centery),

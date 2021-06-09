@@ -26,7 +26,7 @@ class SpaceShip(pygame.sprite.Sprite):
         self.shootable = False
         self.maxTick = 10
         self.tick = self.maxTick
-        self.maxRocket = 60
+        self.maxRocket = 30
         self.rangex = rangex
         self.rangey = rangey
         self.rockettick = self.maxRocket
@@ -90,7 +90,7 @@ class SpaceShip(pygame.sprite.Sprite):
     def shoot(self):
         """mermi ateşleme fonksiyonu"""
         if self.shootable:
-            laser = Shoot(self.rect.right, self.rect.center[1], self.rangex)
+            laser = Shoot(self.rect.right, self.rect.centery, self.rangex)
             self.collide.add(laser)
             self.fuel -= 1
             self.score -= 1
@@ -398,7 +398,9 @@ def get_closest(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group):
     closest_obj = None
     for target in targets:
         dist = get_distance(spaceship.rect, target.rect)
-        if dist < closest_dist and spaceship.rect.centery - target.rect.centery < 0 and spaceship.rect.right - target.rect.left < 0:
+        if dist < closest_dist \
+                and spaceship.rect.centery - target.rect.centery < 0 \
+                and spaceship.rect.left - target.rect.left < 0:
             closest_obj = target
             closest_dist = dist
     return closest_obj
@@ -482,9 +484,9 @@ def lineRectIntersectionPoints(line, rect):
     return result
 
 
-def check_linecol(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group):
+def check_linecol(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group, line):
     # Does the line <player> to <the road of missile> intersect any obstacles?
-    line_of_sight = [spaceship.rect.right, spaceship.rect.centery, *calculate_missile_points(spaceship)]
+    line_of_sight = [spaceship.rect.right, spaceship.rect.centery, *line]
     found = True
     coords = []
     for target in targets:
@@ -507,19 +509,21 @@ def check_linecol(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group)
 def calculate_missile_points(spaceship: pygame.sprite.Sprite):
     xpos = spaceship.rect.right
     ypos = spaceship.rect.centery
-    positions = []
     Py = 640 - ypos
     Px = xpos
     k = Py // 10
-    Sx = Px + k * 2
-    Sy = Py
-    while ypos < 640:
-        # positions.append((xpos, ypos))
-        ypos += 10
-        xpos += 2
-    print((Sx, Sy), (xpos, ypos))
+    Sx = Px + (k * 2)
+    Sy = 640
     return Sx, Sy
-    #
-    # # x_pos = [i for i in range(xpos, 800, 2)]
-    # # y_pos = [i for i in range(ypos, 640, 10)]
-    # return xpos, ypos
+
+
+def calculate_bullet_points(spaceship: pygame.sprite.Sprite):
+    # xpos = spaceship.rect.right
+    ypos = spaceship.rect.centery
+
+    # Py = 640 - ypos
+    # Px = xpos
+    # k = Py // 10
+    # Sx = Px + (k * 2)
+    # Sy = 640
+    return 800, ypos
