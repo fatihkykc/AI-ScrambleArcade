@@ -4,3 +4,5 @@ test.py
 GAMEOBJECT.spec
 .idea
 __pycache__
+*.csv
+*.pkl

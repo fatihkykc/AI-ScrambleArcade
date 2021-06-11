@@ -63,13 +63,10 @@ class SpaceShip(pygame.sprite.Sprite):
         if keystate[pygame.K_DOWN]:
             self.down()
         # self.rect.y += self.speedy
-        if self.rect.y > self.rangey:
-            self.rect.y = self.rangey
-        if self.rect.y < 0:
-            self.rect.y = 0
-
-    def radar(self):
-        pass
+        if self.rect.bottom > self.rangey - 50:
+            self.rect.bottom = self.rangey - 50
+        if self.rect.top < 20:
+            self.rect.top = 20
 
     def up(self):
         self.speedy = -8
@@ -101,28 +98,29 @@ class SpaceShip(pygame.sprite.Sprite):
         if self.rocketready:
             rocket = Rockets(self.rect.right, self.rect.center[1], self.rangey)
             self.collide.add(rocket)
-            self.fuel -= 2
+            # self.fuel -= 2
             self.score -= 2
             self.rocketready = False
 
     def play(self, predictions):
         # print(predictions)
+        # print(self.rect)
         if predictions[0] > 0.5:
             # print("tried to shoot")
             self.shoot()
+        # if predictions[1] > 0.5:
+        #     # print("tried to missile")
+        #     self.missile()
         if predictions[1] > 0.5:
-            # print("tried to missile")
-            self.missile()
-        if predictions[2] > 0.5:
             # print("tried to go up")
             self.up()
-        if predictions[3] > 0.5:
+        if predictions[2] > 0.5:
             # print("tried to go down")
             self.down()
-        if predictions[4] > 0.5:
+        if predictions[3] > 0.5:
             # print("tried to go right")
             self.right()
-        if predictions[5] > 0.5:
+        if predictions[4] > 0.5:
             # print("tried to go left")
             self.left()
 
@@ -215,15 +213,41 @@ class Stone(pygame.sprite.Sprite):
         self.rect.x += -1
 
 
+# defines the enemies
+class Mob(pygame.sprite.Sprite):
+    def __init__(self):
+        pygame.sprite.Sprite.__init__(self)
+        self.image, self.rect = load_png('images/enemy1.png')
+        self.rect.y = random.randrange(0, 640 - self.rect.width)
+        self.rect.x = random.randrange(900, 1050)
+        self.speedx = random.randrange(1, 3)  ## for randomizing the speed of the Mob
+
+        ## randomize the movements a little more
+        self.speedy = random.randrange(-3, 3)
+
+    def update(self):
+        self.rect.x -= self.speedx
+        self.rect.y += self.speedy
+        ## now what if the mob element goes out of the screen
+        # or (self.rect.right > 800 + 20)
+        if (self.rect.top > 640 + 10) or (self.rect.left < -25):
+            self.rect.y = random.randrange(0, 640 - self.rect.width)
+            self.rect.x = random.randrange(-100, -40)
+            self.speedy = random.randrange(1, 8)  ## for randomizing the speed of the Mob
+
+
 class Enemy1(pygame.sprite.Sprite):
     """1.düşman, 1.25 ve 2.5 arasında rastgele bir hızla ilerler"""
 
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
         self.image, self.rect = load_png('images/enemy1.png')
+        # print(self.rect)
+        self.speedx = random.randrange(2, 4)
+        # self.speedy = random.randrange(-2, 2)
 
     def update(self, *args):
-        self.rect.x -= random.uniform(1.25, 2.5)
+        self.rect.x -= self.speedx
 
 
 class Enemy2(pygame.sprite.Sprite):
@@ -344,8 +368,9 @@ def load_png(name):
         else:
             image = image.convert_alpha()
     except pygame.error as error:
-        print('Cannot load image:', fullname)
-        raise (SystemExit, error)
+        # print('Cannot load image:', fullname)
+        # raise (SystemExit, error)
+        return image, image.get_rect()
     return image, image.get_rect()
 
 
@@ -392,21 +417,22 @@ def get_distances(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group)
     return infos
 
 
-def get_closest(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group):
+def get_closest(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group, width):
     infos = []
     closest_dist = 999999
     closest_obj = None
     for target in targets:
         dist = get_distance(spaceship.rect, target.rect)
         if dist < closest_dist \
-                and spaceship.rect.centery - target.rect.centery < 0 \
-                and spaceship.rect.left - target.rect.left < 0:
+                and spaceship.rect.left - target.rect.left < 0 \
+                and target.rect.left < width:
+            # and spaceship.rect.centery - target.rect.centery < 0 \
             closest_obj = target
             closest_dist = dist
     return closest_obj
 
 
-def get_closest_n(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group, n):
+def get_closest_n(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group, n, width):
     infos = []
     closest_dists = [999 for n in range(n)]
     closest_objs = [None for n in range(n)]
@@ -415,8 +441,11 @@ def get_closest_n(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group,
         max_ind = np.argmax(closest_dists)
         if dist < closest_dists[int(max_ind)] \
                 and spaceship.rect.centery - target.rect.centery < 0 \
-                and spaceship.rect.left - target.rect.left < 0 \
-                and target.rect.left < 800:
+                and spaceship.rect.left - target.rect.right < 0 \
+                and target.rect.left < width:
+            # and spaceship.rect.top - target.rect.bottom < 5 \
+
+            # and spaceship.rect.centery - target.rect.centery < 0 \
             closest_objs.pop(int(max_ind))
             closest_objs.insert(int(max_ind), target)
             closest_dists.pop(int(max_ind))
@@ -431,6 +460,7 @@ def get_positions(targets: pygame.sprite.Group):
     return infos
 
 
+# taken from https://stackoverflow.com/questions/1585525/how-to-find-the-intersection-point-between-a-line-and-a-rectangle
 def lineRectIntersectionPoints(line, rect):
     """ Get the list of points where the line and rect
         intersect,  The result may be zero, one or two points.
@@ -485,7 +515,7 @@ def lineRectIntersectionPoints(line, rect):
 
 
 def check_linecol(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group, line):
-    # Does the line <player> to <the road of missile> intersect any obstacles?
+    # Does the line <spaceship> to <the road of missile> intersect any obstacles?
     line_of_sight = [spaceship.rect.right, spaceship.rect.centery, *line]
     found = True
     coords = []
@@ -499,25 +529,25 @@ def check_linecol(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group,
             # break  # seen already
 
     # if (found):
-    #     # pygame.draw.line(window, WHITE, player_centre, npc_centre)
+    #     # pygame.draw.line(window, WHITE, spaceship_centre, npc_centre)
     #     return coords
     # else:
-    #     # pygame.draw.line(window, GREY, player_centre, npc_centre)
+    #     # pygame.draw.line(window, GREY, spaceship_centre, npc_centre)
     #     return "WHITE"
 
 
-def calculate_missile_points(spaceship: pygame.sprite.Sprite):
+def calculate_missile_points(spaceship: pygame.sprite.Sprite, height):
     xpos = spaceship.rect.right
     ypos = spaceship.rect.centery
-    Py = 640 - ypos
+    Py = height - ypos
     Px = xpos
     k = Py // 10
     Sx = Px + (k * 2)
-    Sy = 640
+    Sy = height
     return Sx, Sy
 
 
-def calculate_bullet_points(spaceship: pygame.sprite.Sprite):
+def calculate_bullet_points(spaceship: pygame.sprite.Sprite, width):
     # xpos = spaceship.rect.right
     ypos = spaceship.rect.centery
 
@@ -526,4 +556,68 @@ def calculate_bullet_points(spaceship: pygame.sprite.Sprite):
     # k = Py // 10
     # Sx = Px + (k * 2)
     # Sy = 640
-    return 800, ypos
+    return width, ypos
+
+
+def calculate_top_points(spaceship: pygame.sprite.Sprite):
+    xpos = spaceship.rect.centerx
+    # ypos = spaceship.rect.centery
+
+    # Py = 640 - ypos
+    # Px = xpos
+    # k = Py // 10
+    # Sx = Px + (k * 2)
+    # Sy = 640
+    return xpos, 0
+
+
+def calculate_bottom_points(spaceship: pygame.sprite.Sprite, height):
+    xpos = spaceship.rect.centerx
+    # ypos = spaceship.rect.centery
+
+    # Py = 640 - ypos
+    # Px = xpos
+    # k = Py // 10
+    # Sx = Px + (k * 2)
+    # Sy = 640
+    return xpos, height
+
+
+# taken from https://github.com/WilliamAmbrozic/spaceShooter/tree/master/spaceshooter
+def fill_image(inputNum, inputImg, HEIGHT, WIDTH, spaceship, enemies):
+    RED = (255, 0, 0)
+    GREEN = (0, 255, 0)
+    BLUE = (0, 0, 255)
+    for x in range(inputNum, inputNum * 2):
+        for y in range(inputNum):
+            if (spaceship.rect.center[0] > WIDTH / inputNum * (x - inputNum) and
+                    spaceship.rect.center[0] < WIDTH / inputNum * ((x - inputNum) + 1) and
+                    spaceship.rect.center[1] > WIDTH / inputNum * (y - 1) and
+                    spaceship.rect.center[1] < WIDTH / inputNum * y):
+                # if spaceship collides with a hitbox
+                inputImg[x][y] = RED
+                datOffSet = x - inputNum * 2
+            else:
+                inputImg[x][y] = BLUE
+            # print(type(enemies))
+            for z in range(len(enemies)):
+                if (enemies[z].rect.center[0] > HEIGHT / inputNum * (x - inputNum) and
+                        enemies[z].rect.center[0] < HEIGHT / inputNum * ((x - inputNum) + 1) and
+                        enemies[z].rect.center[1] > HEIGHT / inputNum * (y - 1) and
+                        enemies[z].rect.center[1] < HEIGHT / inputNum * y):
+                    inputImg[x][y] = GREEN
+                    # print(enemies[z].rect.center[1], WIDTH, inputNum, y)
+                elif (inputImg[x][y] != RED):
+                    inputImg[x][y] = BLUE
+                if (inputImg[x][y] == GREEN):
+                    break
+
+
+# taken from https://github.com/WilliamAmbrozic/spaceShooter/tree/master/spaceshooter
+def draw_neat(surf, inputNum, inputImg, xnodePos, ynodePos, size, x, y):
+    for z in range(inputNum, inputNum * 2):
+        for c in range(0, inputNum):
+            pygame.draw.rect(surf, inputImg[z][c], pygame.Rect(x + z * size, y + c * size, size, size))
+            xnodePos[z][c] = x + z * size
+            ynodePos[z][c] = y + c * size
+    nodePos = list(zip(xnodePos, ynodePos))
