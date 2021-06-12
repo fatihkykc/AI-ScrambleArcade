@@ -11,10 +11,10 @@ class GameObject:
 
     # @auto_assign_arguments
     def __init__(self, genomes, config, height=640, width=800, keepgoing=True, currentLevel=1, game_over=False,
-                 fps=9999, screenshow=False, inputNum=20,
+                 fps=9999, screenshow=True, inputNum=20,
                  use_closest_rocket: bool = True,
                  use_closest_fuel: bool = False,
-                 use_closest_stone: bool = True,
+                 use_closest_stone: bool = False,
                  use_closest_enemy1s: bool = True,
                  use_missile_points: bool = False,
                  use_bullet_points: bool = True,
@@ -191,7 +191,7 @@ class GameObject:
 
                     output = net.activate(params)
                     # print(self.clock.get_fps())
-                    # self.spaceship.play(output)
+                    self.spaceship.play(output)
                     genome.fitness = self.spaceship.score
                     if self.screenshow:
                         self.clear()
