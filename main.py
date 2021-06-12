@@ -424,9 +424,9 @@ def get_closest(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group, w
     for target in targets:
         dist = get_distance(spaceship.rect, target.rect)
         if dist < closest_dist \
+                and spaceship.rect.centery - target.rect.centery < 0 \
                 and spaceship.rect.left - target.rect.left < 0 \
                 and target.rect.left < width:
-            # and spaceship.rect.centery - target.rect.centery < 0 \
             closest_obj = target
             closest_dist = dist
     return closest_obj
@@ -440,9 +440,9 @@ def get_closest_n(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group,
         dist = get_distance(spaceship.rect, target.rect)
         max_ind = np.argmax(closest_dists)
         if dist < closest_dists[int(max_ind)] \
-                and spaceship.rect.centery - target.rect.centery < 0 \
                 and spaceship.rect.left - target.rect.right < 0 \
                 and target.rect.left < width:
+            # and spaceship.rect.centery - target.rect.centery < 0 \
             # and spaceship.rect.top - target.rect.bottom < 5 \
 
             # and spaceship.rect.centery - target.rect.centery < 0 \
@@ -458,6 +458,26 @@ def get_positions(targets: pygame.sprite.Group):
     # for target in targets:
     #     infos.append(target.rect.center)
     return infos
+
+
+# def point_in_sight(target, t0, t1, t2):
+#     a = 1 / 2 * (-t1[1] * t2[0] + t0[1] * (-t1[0] + t2[0]) + t0[0] * (t1[1] - t2[1]) + t1[0] * t2[1])
+#     print(a, target, t0, t1, t2)
+#     sign = -1 if a < 0 else 1
+#     s = (t0[1] * t2[0] - t0[0] * t2[1] + (t2[1] - t0[1]) * target[0] + (t0[0] - t2[0]) * target[1]) * sign
+#     t = (t0[0] * t1[1] - t0[1] * t1[0] + (t0[1] - t1[1]) * target[0] + (t1[0] - t0[0]) * target[1]) * sign
+#     return s > 0 & t > 0 & (s + t) < 2 * a * sign
+#
+#
+# def line_of_sight(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group):
+#     top_point = spaceship.rect.midright[0] + 500, spaceship.rect.midright[1] - 100
+#     bottom_point = spaceship.rect.midright[0] + 500, spaceship.rect.midright[1] + 100
+#     for target in targets:
+#         if point_in_sight(target.rect.center, spaceship.rect.midright, top_point, bottom_point):
+#             return [target, top_point, bottom_point]
+#         else:
+#             print([None, top_point, bottom_point])
+#             return [None, top_point, bottom_point]
 
 
 # taken from https://stackoverflow.com/questions/1585525/how-to-find-the-intersection-point-between-a-line-and-a-rectangle
@@ -515,7 +535,7 @@ def lineRectIntersectionPoints(line, rect):
 
 
 def check_linecol(spaceship: pygame.sprite.Sprite, targets: pygame.sprite.Group, line):
-    # Does the line <spaceship> to <the road of missile> intersect any obstacles?
+    # Does the line <spaceship> to <the path of bullet> intersect any obstacles?
     line_of_sight = [spaceship.rect.right, spaceship.rect.centery, *line]
     found = True
     coords = []

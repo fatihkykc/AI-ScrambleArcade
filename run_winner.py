@@ -6,7 +6,7 @@ import neat
 import pickle
 
 
-def replay_genome(config_path, genome_path="goodwithonlyrocketenemy1.pkl"):
+def replay_genome(config_path, genome_path="winner.pkl"):
     # Load requried NEAT config
     config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet,
                                 neat.DefaultStagnation, config_path)

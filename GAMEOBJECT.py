@@ -9,15 +9,43 @@ import neat, pygame
 class GameObject:
     """Oyun objesi."""
 
-    def __init__(self, genomes, config, height=640, width=800, keepgoing=True, level=1, game_over=False, fps=9999,
-                 screenshow=False, inputNum=20):
+    # @auto_assign_arguments
+    def __init__(self, genomes, config, height=640, width=800, keepgoing=True, currentLevel=1, game_over=False,
+                 fps=9999, screenshow=False, inputNum=20,
+                 use_closest_rocket: bool = True,
+                 use_closest_fuel: bool = False,
+                 use_closest_stone: bool = True,
+                 use_closest_enemy1s: bool = True,
+                 use_missile_points: bool = False,
+                 use_bullet_points: bool = True,
+                 use_missile_interactions: bool = False,
+                 use_top_interactions: bool = True,
+                 use_bot_interactions: bool = True,
+                 use_bullet_interactions: bool = True,
+                 use_fuel: bool = True,
+                 use_image_repr: bool = False):
         if not screenshow:
             os.environ["SDL_VIDEODRIVER"] = "dummy"
+
+        # Used NN Input Parameters
+        self.use_closest_rocket = use_closest_rocket
+        self.use_closest_fuel = use_closest_fuel
+        self.use_closest_stone = use_closest_stone
+        self.use_closest_enemy1s = use_closest_enemy1s
+        self.use_missile_points = use_missile_points
+        self.use_bullet_points = use_bullet_points
+        self.use_missile_interactions = use_missile_interactions
+        self.use_bullet_interactions = use_bullet_interactions
+        self.use_top_interactions = use_top_interactions
+        self.use_bot_interactions = use_bot_interactions
+        self.use_image_repr = use_image_repr
+        self.use_fuel = use_fuel
+
         self.screenshow = screenshow
         pygame.init()
         self.white = (255, 255, 255)
         pygame.mixer.init()
-        self.currentLevel = level
+        self.currentLevel = currentLevel
         self.fps = fps
         self.width = width
         self.height = height
@@ -28,20 +56,23 @@ class GameObject:
         self.ge = []
         self.spaceships = []
         self.game_over = game_over
-        self.RED = (255, 0, 0)
-        self.GREEN = (0, 255, 0)
-        self.BLUE = (0, 0, 255)
-        self.xnodePos = [[0 for x in range(inputNum)] for y in range(inputNum * 3)]
-        self.ynodePos = [[0 for x in range(inputNum)] for y in range(inputNum * 3)]
-        self.nodePos = list(zip(self.xnodePos, self.ynodePos))
-        self.inputNum = inputNum
-        self.inputImage = [[0 for i in range(self.inputNum)] for j in range(self.inputNum * 3)]
-        for x in range(0, inputNum):
-            for y in range(0, inputNum):
-                if (x % 2 == 0):
-                    self.inputImage[x][y] = self.GREEN
-                else:
-                    self.inputImage[x][y] = self.BLUE
+        if use_image_repr:
+            # for image representation input
+            self.RED = (255, 0, 0)
+            self.GREEN = (0, 255, 0)
+            self.BLUE = (0, 0, 255)
+            self.xnodePos = [[0 for x in range(inputNum)] for y in range(inputNum * 3)]
+            self.ynodePos = [[0 for x in range(inputNum)] for y in range(inputNum * 3)]
+            self.nodePos = list(zip(self.xnodePos, self.ynodePos))
+            self.inputNum = inputNum
+            self.inputImage = [[0 for i in range(self.inputNum)] for j in range(self.inputNum * 3)]
+            for x in range(0, inputNum):
+                for y in range(0, inputNum):
+                    if (x % 2 == 0):
+                        self.inputImage[x][y] = self.GREEN
+                    else:
+                        self.inputImage[x][y] = self.BLUE
+        # endfor
         if self.screenshow:
             self.initScreen()
             self.fillBackground()
@@ -66,52 +97,84 @@ class GameObject:
                     self.keepGoing(strt=False)
                     print("Species: " + str(genome_id))
                     break
-                    # self.colliders()
-                    # self.spriteUpdate()
-                    # self.clear()
-                    # self.draw()
-                    # self.isThisTheEnd()
-                    # pygame.display.flip()
-                    # self.spaceship.lives=1s
                 else:
-                    # self.keepgoing = True
                     self.keepGoing()
                     self.colliders()
                     self.spriteUpdate()
                     # ********** INPUTS ************ #
-                    # x and y distance with the 5 closest enemies in front
-                    # distance with the top and bottom stones
-                    closest_rocket = get_closest(self.spaceship, self.enemy3Sprites, self.width)
-                    # closest_fuel = get_closest(self.spaceship, self.fuelSprites, self.width)
-                    # closest_rocket = get_closest_n(self.spaceship, self.enemy3Sprites, 2)
-                    # closest_fuel = get_closest_n(self.spaceship, self.fuelSprites, 2)
-                    # closest_stone = get_closest(self.spaceship, self.stoneSprites, self.width)
-                    # highest_stone = 0
-                    # if closest_stone:
-                    #     if closest_stone.rect.top > highest_stone:
-                    #         highest_stone = closest_stone.rect.top
-                    closest_enemy1s = get_closest_n(self.spaceship, self.enemy1Sprites, 5, self.width)
-                    # missile_points = calculate_missile_points(self.spaceship, self.height)
-                    # top_points = calculate_top_points(self.spaceship)
-                    # bottom_points = calculate_bottom_points(self.spaceship, self.height)
-                    bullet_points = calculate_bullet_points(self.spaceship, self.width)
-                    # all_sp = pygame.sprite.Group(*self.enemy1Sprites.sprites(), *self.enemy3Sprites.sprites(),
-                    #                              *self.fuelSprites.sprites(), *self.stoneSprites.sprites())
-                    if closest_rocket:
-                        self.enemy1Sprites.add(closest_rocket)
-                    # if closest_fuel:
-                    #     self.enemy1Sprites.add(closest_fuel)
-                    # top_intersections = check_linecol(self.spaceship, all_sp, top_points)
-                    # bot_intersections = check_linecol(self.spaceship, all_sp, bottom_points)
-                    bullet_intersections = check_linecol(self.spaceship, self.enemy1Sprites, bullet_points)
-                    # missile_intersections = check_linecol(self.spaceship, self.enemy1Sprites, missile_points)
+                    params = [self.spaceship.rect.right, self.spaceship.rect.left,
+                              self.spaceship.rect.bottom, self.spaceship.rect.top]
+                    if self.use_closest_rocket:
+                        closest_rocket = get_closest(self.spaceship, self.enemy3Sprites, self.width)
+                        params.extend([[closest_rocket.rect.left if closest_rocket else 0][0],
+                                       [closest_rocket.rect.top if closest_rocket else 0][0],
+                                       [closest_rocket.rect.bottom if closest_rocket else 0][0],
+                                       [closest_rocket.rect.right if closest_rocket else 0][0], ])
+                    if self.use_closest_fuel:
+                        closest_fuel = get_closest(self.spaceship, self.fuelSprites, self.width)
+                        params.extend([
+                            [closest_fuel.rect.left if closest_fuel else 0][0],
+                            [closest_fuel.rect.top if closest_fuel else 0][0],
+                        ])
+                    if self.use_closest_stone:
+                        closest_stone = get_closest(self.spaceship, self.stoneSprites, self.width)
+                        params.extend([
+                            [closest_stone.rect.left if closest_stone else 0][0],
+                            [closest_stone.rect.top if closest_stone else 0][0],
+                        ])
+
+                    if self.use_closest_enemy1s:
+                        closest_enemy1s = get_closest_n(self.spaceship, self.enemy1Sprites, 3, self.width)
+                        ces = [[ce.rect.left, ce.rect.right, ce.rect.top, ce.rect.bottom] if ce else [0, 0, 0, 0] for ce
+                               in
+                               closest_enemy1s]
+                        params.extend([ces[0][0], ces[0][1], ces[0][2], ces[0][3],
+                                       ces[1][0], ces[1][1], ces[1][2], ces[1][3],
+                                       ces[2][0], ces[2][1], ces[2][2], ces[2][3]]
+                                      # ces[3][0], ces[3][1], ces[3][2], ces[3][3],
+                                      # ces[4][0], ces[4][1], ces[4][2], ces[4][3]]
+                                      )
+
+                    if self.use_top_interactions:
+                        top_points = calculate_top_points(self.spaceship)
+                        top_intersections = check_linecol(self.spaceship, self.all_sp, top_points)
+                        params.extend([
+                            [top_intersections[0][0] if top_intersections else top_points[0]][0],
+                            [top_intersections[0][1] if top_intersections else top_points[1]][0],
+                        ])
+
+                    if self.use_top_interactions:
+                        bottom_points = calculate_bottom_points(self.spaceship, self.height)
+                        bot_intersections = check_linecol(self.spaceship, self.all_sp, bottom_points)
+                        params.extend([
+                            [bot_intersections[0][0] if bot_intersections else bottom_points[0]][0],
+                            [bot_intersections[0][1] if bot_intersections else bottom_points[1]][0]
+                        ])
+
+                    if self.use_bullet_points:
+                        bullet_points = calculate_bullet_points(self.spaceship, self.width)
+                        if self.use_bullet_interactions:
+                            bullet_intersections = check_linecol(self.spaceship, self.all_sp, bullet_points)
+                            params.extend([
+                                [bullet_intersections[0][0] if bullet_intersections else bullet_points[0]][0],
+                                [bullet_intersections[0][1] if bullet_intersections else bullet_points[1]][0],
+                            ])
+
+                    if self.use_missile_points:
+                        missile_points = calculate_missile_points(self.spaceship, self.height)
+                        if self.use_missile_interactions:
+                            missile_intersections = check_linecol(self.spaceship, self.all_sp, missile_points)
+                            params.extend([
+                                [missile_intersections[0][0] if missile_intersections else missile_points[0]][0],
+                                [missile_intersections[0][1] if missile_intersections else missile_points[1]][0],
+                            ])
+
                     # enemy1_distanceX, enemy1_distanceY = map(list,
                     #                                          zip(*get_distances(self.spaceship, self.enemy1Sprites)))
                     # fuel_distanceX, fuel_distanceY = map(list,
                     #                                      zip(*get_distances(self.spaceship, self.fuelSprites)))
                     # rocket_distanceX, rocket_distanceY = map(list,
                     #                                          zip(*get_distances(self.spaceship, self.enemy3Sprites)))
-                    # print(enemy1_distanceX[0])
                     # enemy1_x, enemy1_y = map(list,
                     #                          zip(*get_positions(self.enemy1Sprites)))
                     # enemy3_x, enemy3_y = map(list,
@@ -119,63 +182,33 @@ class GameObject:
                     # stone_x, stone_y = map(list,
                     #                        zip(*get_positions(self.stoneSprites)))
                     # fuel_x, fuel_y = map(list, zip(*get_positions(self.fuelSprites)))
-                    # print(self.spaceship.rect.right)
-                    ces = [[ce.rect.left, ce.rect.right, ce.rect.top, ce.rect.bottom] if ce else [0, 0, 0, 0] for ce in
-                           closest_enemy1s]
-                    # # print("ces:", ces)
-                    # print(np.where(self.inputImage == self.GREEN, 1,
-                    #                np.where(self.inputImage == self.RED, 2, 0)))
 
                     # inp = np.array(self.inputImage, dtype='object').flatten()
-                    # [print(x) for x in inp]
                     # inp = [1 if x == self.RED else 2 if x == self.GREEN else 0 for x in inp]
                     # inp = list(map(lambda x: 1 if x==self.RED else 2 if x==self.GREEN else 0, inp))
                     # inp = np.where(np.array(inp) == self.GREEN, 1,
                     #                np.where(np.array(inp) == self.RED, 2, 0))
-                    # print(inp)
-                    output = net \
-                        .activate(
-                        (
-                            self.spaceship.rect.right, self.spaceship.rect.left,
-                            self.spaceship.rect.bottom, self.spaceship.rect.top,
-                            ces[0][0], ces[0][1], ces[0][2], ces[0][3],
-                            ces[1][0], ces[1][1], ces[1][2], ces[1][3],
-                            ces[2][0], ces[2][1], ces[2][2], ces[2][3],
-                            ces[3][0], ces[3][1], ces[3][2], ces[3][3],
-                            ces[4][0], ces[4][1], ces[4][2], ces[4][3],
-                            #         # *enemy3_x, *enemy3_y, *fuel_x, *fuel_y,
-                            #         # *[ce.rect.left if ce else 0 for ce in closest_enemy1s],
-                            #         # *[ce.rect.top if ce else 0 for ce in closest_enemy1s],
-                            #
 
-                            #         # *[ce.rect.left if ce else 0 for ce in closest_rocket],
-                            #         # *[ce.rect.top if ce else 0 for ce in closest_rocket],
-                            # *[ce.rect.left if ce else 0 for ce in closest_fuel],
-                            # *[ce.rect.top if ce else 0 for ce in closest_fuel],
-                            # closest_fuel.rect.left if closest_fuel else 0,
-                            # closest_fuel.rect.top if closest_fuel else 0,
-                            # highest_stone,
-                            # [closest_stone.rect.left if closest_stone else 0][0],
-                            # [closest_stone.rect.top if closest_stone else 0][0],
-                            [closest_rocket.rect.left if closest_rocket else 0][0],
-                            [closest_rocket.rect.top if closest_rocket else 0][0],
-                            [closest_rocket.rect.bottom if closest_rocket else 0][0],
-                            [closest_rocket.rect.right if closest_rocket else 0][0],
-                            # [missile_intersections[0][0] if missile_intersections else missile_points[0]][0],
-                            # [missile_intersections[0][1] if missile_intersections else missile_points[1]][0],
-                            [bullet_intersections[0][0] if bullet_intersections else bullet_points[0]][0],
-                            [bullet_intersections[0][1] if bullet_intersections else bullet_points[1]][0],
-                            # [top_intersections[0][0] if top_intersections else top_points[0]][0],
-                            # [top_intersections[0][1] if top_intersections else top_points[1]][0],
-                            # [bot_intersections[0][0] if bot_intersections else bottom_points[0]][0],
-                            # [bot_intersections[0][1] if bot_intersections else bottom_points[1]][0]
-                        ))
+                    output = net.activate(params)
                     # print(self.clock.get_fps())
-                    self.spaceship.play(output)
+                    # self.spaceship.play(output)
                     genome.fitness = self.spaceship.score
                     if self.screenshow:
                         self.clear()
-                        self.draw()
+                        self.draw(
+                            draw_closest_rocket=self.use_closest_rocket,
+                            draw_closest_fuel=self.use_closest_fuel,
+                            draw_closest_stone=self.use_closest_stone,
+                            draw_closest_enemy1s=self.use_closest_enemy1s,
+                            draw_missile_points=self.use_missile_points,
+                            draw_bullet_points=self.use_bullet_points,
+                            draw_missile_interactions=self.use_missile_interactions,
+                            draw_bullet_interactions=self.use_bullet_interactions,
+                            draw_top_interactions=self.use_top_interactions,
+                            draw_bot_interactions=self.use_bot_interactions,
+                            draw_image_repr=self.use_image_repr,
+                            draw_fuel=self.use_fuel,
+                        )
                     # fill_image(inputNum=self.inputNum, inputImg=self.inputImage, HEIGHT=self.height, WIDTH=self.width,
                     #            enemies=[*self.enemy1Sprites.sprites(), *self.enemy3Sprites.sprites()],
                     #            spaceship=self.spaceship)
@@ -202,9 +235,6 @@ class GameObject:
         "e" karakteri düşman füzeleri çağırır."""
         self.isWave1 = True
         self.wave_1()
-        # for i in range(8):  ## 8 mobs
-        #     mob_element = Mob()
-        #     self.mobs.add(mob_element)
         y = 0
         level1 = []
         world = []
@@ -239,6 +269,8 @@ class GameObject:
                     self.theEndGame.rect.y = y
                 x += 32
             y += +32
+        self.all_sp = pygame.sprite.Group(*self.enemy1Sprites.sprites(), *self.enemy3Sprites.sprites(),
+                                          *self.fuelSprites.sprites(), *self.stoneSprites.sprites())
 
     def draw_player_fuel(self, surf, x, y, pct):
         """Oyuncu karakterin yakıt seviyesi için görselleştirme."""
@@ -305,17 +337,6 @@ class GameObject:
             self.spaceship.lives -= 1
             self.lives[-1].kill()
             del self.lives[-1]
-
-        # player-mob collider
-        # spaceshiphits = pygame.sprite.spritecollide(self.spaceship, self.mobs, True)
-        # for hit in spaceshiphits:
-        #     expl = Explosion(hit.rect.center, 'sm')
-        #     self.explosionSprites.add(expl)
-        # if spaceshiphits:
-        #     self.spaceship.score -= 50
-        #     self.spaceship.lives -= 1
-        #     self.lives[-1].kill()
-        #     del self.lives[-1]
 
         # player-enemy collider
         spaceshiphits = pygame.sprite.spritecollide(self.spaceship, self.enemy3Sprites, True)
@@ -487,9 +508,6 @@ class GameObject:
                 self.enemy2.rect.y = random.randrange(0, self.height // 2 + 50)
                 self.enemy2Sprites.add(self.enemy2)
 
-    # def restart(self):
-    #     self.
-
     def clear(self):
         """ekranı temizler."""
         self.systemSprites.clear(self.screen, self.background)
@@ -518,7 +536,10 @@ class GameObject:
         self.explosionSprites.update()
         self.liveSprites.update()
 
-    def draw(self):
+    def draw(self, draw_closest_rocket: bool = True, draw_closest_fuel: bool = True, draw_closest_stone: bool = True,
+             draw_closest_enemy1s: bool = True, draw_missile_points: bool = True, draw_bullet_points: bool = True,
+             draw_missile_interactions: bool = True, draw_bullet_interactions: bool = True, draw_fuel: bool = True,
+             draw_top_interactions: bool = True, draw_bot_interactions: bool = True, draw_image_repr: bool = False):
         """bütün spriteları ekrana çizer"""
         self.systemSprites.draw(self.screen)
         self.userSprites.draw(self.screen)
@@ -531,49 +552,92 @@ class GameObject:
         self.shootSprites.draw(self.screen)
         self.explosionSprites.draw(self.screen)
         # self.liveSprites.draw(self.screen)
-        # self.draw_player_fuel(self.screen, self.width / 2 - 100, self.height - 50, self.spaceship.fuel / 100)
-        # closest_rocket = get_closest(self.spaceship, self.enemy3Sprites, self.width)
-        # closest_fuel = get_closest(self.spaceship, self.fuelSprites, self.width)
-        # closest_stone = get_closest(self.spaceship, self.stoneSprites, self.width)
-        closest_enemy1s = get_closest_n(self.spaceship, self.enemy1Sprites, 5, self.width)
-        # missile_points = calculate_missile_points(self.spaceship, self.height)
-        bullet_points = calculate_bullet_points(self.spaceship, self.width)
-        # missile_intersections = check_linecol(self.spaceship, self.enemy1Sprites, missile_points)
-        bullet_intersections = check_linecol(self.spaceship, pygame.sprite.Group(
-            [*self.enemy3Sprites, *self.enemy1Sprites]), bullet_points)
-        # if closest_rocket:
-        #     pygame.draw.line(self.screen, "RED", (self.spaceship.rect.right, self.spaceship.rect.centery),
-        #                      (closest_rocket.rect.centerx, closest_rocket.rect.top))
-        # # if closest_fuel:
-        # #     pygame.draw.line(self.screen, "GREEN", (self.spaceship.rect.right, self.spaceship.rect.centery),
-        # #                      (closest_fuel.rect.centerx, closest_fuel.rect.top))
-        # if closest_stone:
-        #     pygame.draw.line(self.screen, "BLUE", (self.spaceship.rect.right, self.spaceship.rect.centery),
-        #                      (closest_stone.rect.centerx, closest_stone.rect.top))
-        # if missile_intersections:
+        self.draw_player_fuel(self.screen, self.width / 2 - 100, self.height - 50, self.spaceship.fuel / 100)
+
+        if draw_closest_rocket:
+            closest_rocket = get_closest(self.spaceship, self.enemy3Sprites, self.width)
+            if closest_rocket:
+                pygame.draw.line(self.screen, "RED", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                                 (closest_rocket.rect.centerx, closest_rocket.rect.top))
+        if draw_closest_fuel:
+            closest_fuel = get_closest(self.spaceship, self.fuelSprites, self.width)
+            if closest_fuel:
+                pygame.draw.line(self.screen, "GREEN", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                                 (closest_fuel.rect.centerx, closest_fuel.rect.top))
+
+        if draw_closest_stone:
+            closest_stone = get_closest(self.spaceship, self.stoneSprites, self.width)
+            if closest_stone:
+                pygame.draw.line(self.screen, "BLUE", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                                 (closest_stone.rect.centerx, closest_stone.rect.top))
+
+        if draw_missile_interactions:
+            missile_points = calculate_missile_points(self.spaceship, self.height)
+            missile_intersections = check_linecol(self.spaceship, self.enemy1Sprites, missile_points)
+            if missile_intersections:
+                pygame.draw.line(self.screen, "WHITE", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                                 missile_intersections[0])
+            elif draw_missile_points:
+                pygame.draw.line(self.screen, "WHITE", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                                 missile_points)
+
+        if draw_top_interactions:
+            top_points = calculate_top_points(self.spaceship)
+            top_intersections = check_linecol(self.spaceship, self.all_sp, top_points)
+            if top_intersections:
+                pygame.draw.line(self.screen, "PURPLE", (self.spaceship.rect.centerx, self.spaceship.rect.centery),
+                                 top_intersections[0])
+            else:
+                pygame.draw.line(self.screen, "WHITE", (self.spaceship.rect.centerx, self.spaceship.rect.centery),
+                                 top_points)
+
+        if draw_bot_interactions:
+            bottom_points = calculate_bottom_points(self.spaceship, self.height)
+            bot_intersections = check_linecol(self.spaceship, self.all_sp, bottom_points)
+            if bot_intersections:
+                pygame.draw.line(self.screen, "PURPLE", (self.spaceship.rect.centerx, self.spaceship.rect.centery),
+                                 bot_intersections[0])
+            else:
+                pygame.draw.line(self.screen, "WHITE", (self.spaceship.rect.centerx, self.spaceship.rect.centery),
+                                 bottom_points)
+
+        if draw_bullet_interactions:
+            bullet_points = calculate_bullet_points(self.spaceship, self.width)
+            bullet_intersections = check_linecol(
+                self.spaceship, pygame.sprite.Group([*self.enemy3Sprites, *self.enemy1Sprites]), bullet_points)
+            if bullet_intersections:
+                pygame.draw.line(self.screen, "PURPLE", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                                 bullet_intersections[0])
+            elif draw_bullet_points:
+                pygame.draw.line(self.screen, "GREEN", (self.spaceship.rect.right, self.spaceship.rect.centery),
+                                 (800, self.spaceship.rect.centery))
+        if draw_closest_enemy1s:
+            closest_enemy1s = get_closest_n(self.spaceship, self.enemy1Sprites, 3, self.width)
+            [pygame.draw.line(
+                self.screen, "YELLOW",
+                (self.spaceship.rect.right, self.spaceship.rect.centery),
+                (e.rect.centerx, e.rect.centery)
+            ) if e else None for e in closest_enemy1s]
+        # target_and_tri = line_of_sight(spaceship=self.spaceship, targets=self.all_sp)
+        # if target_and_tri[0]:
         #     pygame.draw.line(self.screen, "WHITE", (self.spaceship.rect.right, self.spaceship.rect.centery),
-        #                      missile_intersections[0])
-        # else:
-        #     pygame.draw.line(self.screen, "WHITE", (self.spaceship.rect.right, self.spaceship.rect.centery),
-        #                      missile_points)
-        if bullet_intersections:
-            pygame.draw.line(self.screen, "PURPLE", (self.spaceship.rect.right, self.spaceship.rect.centery),
-                             bullet_intersections[0])
-        else:
-            pygame.draw.line(self.screen, "GREEN", (self.spaceship.rect.right, self.spaceship.rect.centery),
-                             (800, self.spaceship.rect.centery))
-        for e in closest_enemy1s:
-            if e:
-                pygame.draw.line(self.screen, "YELLOW", (self.spaceship.rect.right, self.spaceship.rect.centery),
-                                 (e.rect.centerx, e.rect.centery))
-        # fill_image(inputNum=self.inputNum, inputImg=self.inputImage, WIDTH=800, enemies=self.enemy1Sprites,
-        #            spaceship=self.spaceship)
-        # size = 10
-        # draw_neat(surf=self.screen, size=size, inputNum=self.inputNum, inputImg=self.inputImage, xnodePos=self.xnodePos,
-        #           ynodePos=self.ynodePos, x=self.width / 2 - 500, y=(self.height) / 2 - 100)
-        # draw_text(self.screen, "FUEL ", 18, self.width / 2, self.height - 50)
+        #                      target_and_tri[0])
+        # pygame.draw.line(self.screen, "WHITE", (self.spaceship.rect.right, self.spaceship.rect.centery),
+        #                  target_and_tri[1])
+        # pygame.draw.line(self.screen, "WHITE", (self.spaceship.rect.right, self.spaceship.rect.centery),
+        #                  target_and_tri[2])
+
+        if draw_image_repr:
+            fill_image(inputNum=self.inputNum, inputImg=self.inputImage, WIDTH=800, enemies=self.enemy1Sprites,
+                       spaceship=self.spaceship)
+            size = 10
+            draw_neat(surf=self.screen, size=size, inputNum=self.inputNum, inputImg=self.inputImage,
+                      xnodePos=self.xnodePos,
+                      ynodePos=self.ynodePos, x=self.width / 2 - 500, y=(self.height) / 2 - 100)
+        if draw_fuel:
+            draw_text(self.screen, "FUEL ", 18, self.width / 2, self.height - 50)
+            draw_text(self.screen, str(self.spaceship.fuel), 24, self.width - 100, 24)
         draw_text(self.screen, str(self.spaceship.score), 24, self.width - 24, 24)
-        # draw_text(self.screen, str(self.spaceship.fuel), 24, self.width - 100, 24)
 
 
 def run(config_file):
@@ -591,7 +655,7 @@ def run(config_file):
     p.add_reporter(stats)
     # p.add_reporter(neat.Checkpointer(5))
 
-    winner = p.run(GameObject, 40)
+    winner = p.run(GameObject, 20)
     stats.save_genome_fitness()
     with open("winner.pkl", "wb") as f:
         pickle.dump(winner, f)
